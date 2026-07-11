@@ -1,5 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.orm import Session
+
+from app import oauth2
 from ..database import get_db
 from .. import models, schemas
 # allow us to define a router for the post endpoints, and we can use the prefix argument to specify that all the endpoints in this router will have the prefix /posts, like this:
@@ -13,7 +15,7 @@ router = APIRouter(
 
 
 @router.get("/", response_model=list[schemas.Post])
-def get_posts(db: Session = Depends(get_db)):
+def get_posts(db: Session = Depends(get_db), current_user: int = Depends(oauth2.get_current_user)):
     posts = db.query(models.Post).all()
     # # to fetch post from database we can use the cursor object to execute a SQL query,
     # cursor.execute("SELECT * FROM posts")
@@ -23,7 +25,7 @@ def get_posts(db: Session = Depends(get_db)):
 
 
 @router.get("/{id}", response_model=schemas.Post)
-def get_post(id: int, response: Response, db: Session = Depends(get_db)):
+def get_post(id: int, response: Response, db: Session = Depends(get_db), current_user: int = Depends(oauth2.get_current_user)):
     # cursor.execute("SELECT * FROM posts WHERE id = %s", str((id),))
     # post = cursor.fetchone()
     post = db.query(models.Post).filter(models.Post.id == id).first()
@@ -37,11 +39,12 @@ def get_post(id: int, response: Response, db: Session = Depends(get_db)):
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED, response_model=schemas.Post)
-def create_posts(post: schemas.PostCreate, db: Session = Depends(get_db)):
+def create_posts(post: schemas.PostCreate, db: Session = Depends(get_db), current_user: int = Depends(oauth2.get_current_user)):
     # to inert a new post into the database, we can use the cursor object to execute an INSERT SQL query like this:
-    # hre to get the request body using sanity check we do it by %s and then we pass the values as a tuple in the second argument of the execute() method, like this:
+    # here to get the request body using sanity check we do it by %s and then we pass the values as a tuple in the second argument of the execute() method, like this:
     # cursor.execute("INSERT INTO posts(title,content,published) VALUES(%s,%s,%s)RETURNING *",
     #                (post.title, post.content, post.published))
+    # print(current_user.email)
     new_post = models.Post(**post.model_dump())
     # new_post = models.Post(title=post.title, content=post.content, published=post.published)
     db.add(new_post)
@@ -56,7 +59,7 @@ def create_posts(post: schemas.PostCreate, db: Session = Depends(get_db)):
 
 
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_post(id: int, db: Session = Depends(get_db)):
+def delete_post(id: int, db: Session = Depends(get_db), current_user: int = Depends(oauth2.get_current_user)):
     # cursor.execute("DELETE FROM posts WHERE id = %s RETURNING *", str((id),))
     # deleted_post = cursor.fetchone()
     # conn.commit()
@@ -71,7 +74,7 @@ def delete_post(id: int, db: Session = Depends(get_db)):
 
 
 @router.put("/{id}", response_model=schemas.Post)
-def update_post(id: int, updated_post: schemas.PostCreate, db: Session = Depends(get_db)):
+def update_post(id: int, updated_post: schemas.PostCreate, db: Session = Depends(get_db), current_user: int = Depends(oauth2.get_current_user)):
     # cursor.execute("UPDATE posts SET title=%s,content=%s,published=%s WHERE id = %s RETURNING *",
     #                (post.title, post.content, post.published, str((id),)))
     # updated_post = cursor.fetchone()
