@@ -23,8 +23,11 @@ class PostCreate(PostBase):
 
 class Post(BaseModel):
     id: int
+    title: str
     content: str
     created_at: datetime
+    owner_id: int
+    owner: "UserOut"  # this is to include the owner information in the response, so that we can see who created the post. We can use the UserOut model to define the structure of the owner data, and we can use the relationship between the Post and User models to fetch the owner data from the database.
 
     class Config:
         orm_mode = True

@@ -15,8 +15,11 @@ router = APIRouter(
 
 
 @router.get("/", response_model=list[schemas.Post])
-def get_posts(db: Session = Depends(get_db), current_user: int = Depends(oauth2.get_current_user)):
-    posts = db.query(models.Post).all()
+def get_posts(db: Session = Depends(get_db), current_user: int = Depends(oauth2.get_current_user), limit: int = 10, skip: int = 0):
+    # this is to fetch only the post created by the current user
+    posts = db.query(models.Post).limit(limit).offset(skip).all()
+    # posts = db.query(models.Post).filter(
+    #     models.Post.owner_id == current_user.id).all()
     # # to fetch post from database we can use the cursor object to execute a SQL query,
     # cursor.execute("SELECT * FROM posts")
     # # and then use the fetchall() method to get all the results, like this:
@@ -45,7 +48,9 @@ def create_posts(post: schemas.PostCreate, db: Session = Depends(get_db), curren
     # cursor.execute("INSERT INTO posts(title,content,published) VALUES(%s,%s,%s)RETURNING *",
     #                (post.title, post.content, post.published))
     # print(current_user.email)
-    new_post = models.Post(**post.model_dump())
+    # print(current_user.id)
+    # the current should be able to create his post without passing the owner_id manaully in the body
+    new_post = models.Post(owner_id=current_user.id, **post.model_dump())
     # new_post = models.Post(title=post.title, content=post.content, published=post.published)
     db.add(new_post)
     db.commit()
@@ -67,7 +72,10 @@ def delete_post(id: int, db: Session = Depends(get_db), current_user: int = Depe
     if post.first() is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"post with id {id} doest not exist")
-
+    # and a person cannot delete others post he is allowed to delete his own posts
+    if post.first().owner_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail=f"Not authorized to perform this action")
     post.delete(synchronize_session=False)
     db.commit()
     return (Response(status_code=status.HTTP_204_NO_CONTENT))
@@ -80,13 +88,18 @@ def update_post(id: int, updated_post: schemas.PostCreate, db: Session = Depends
     # updated_post = cursor.fetchone()
     # conn.commit()
     post_query = db.query(models.Post).filter(models.Post.id == id)
-    print(post_query)
-    if post_query.first() is None:
+    post = post_query.first()
+    if post is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"post with id {id} not found")
-    # post_query.update(updated_post.model_dump(), synchronize_session=False)
-    db.query(models.Post).filter(models.Post.id == id).update(
-        updated_post.model_dump(), synchronize_session=False)
 
+    # and a person cannot edit others post he is allowed edit his own posts
+    if post.owner_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail=f"Not authorized to perform this action")
+    # post_query.update(updated_post.model_dump(), synchronize_session=False)
+    post_query.update({**updated_post.model_dump(), "owner_id": current_user.id},
+                      synchronize_session=False)
     db.commit()
-    return updated_post
+    updated = post_query.first()
+    return updated
